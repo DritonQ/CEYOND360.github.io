@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhotoSphereViewer - equirectangular demo</title>
+
+  <link rel="stylesheet" href="../dist/photo-sphere-viewer.css">
+
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+
+    #photosphere {
+      width: 100%;
+      height: 100%;
+    }
+
+    .psv-button.custom-button {
+      font-size: 22px;
+      line-height: 20px;
+    }
+
+    .demo-label {
+      color: white;
+      font-size: 20px;
+      font-family: Helvetica, sans-serif;
+      text-align: center;
+      padding: 5px;
+      border: 1px solid white;
+      background: rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+
+<div id="photosphere"></div>
+
+<script src="../node_modules/three/build/three.js"></script>
+<script src="../node_modules/promise-polyfill/dist/polyfill.js"></script>
+<script src="../node_modules/uevent/uevent.js"></script>
+<script src="../node_modules/dot/doT.js"></script>
+<script src="../node_modules/nosleep.js/dist/NoSleep.js"></script>
+<script src="../node_modules/three/examples/js/controls/DeviceOrientationControls.js"></script>
+<script src="../node_modules/three/examples/js/effects/StereoEffect.js"></script>
+<script src="../dist/photo-sphere-viewer.js"></script>
+
+<!-- text used for the marker description -->
+<script type="text/template" id="pin-content">
+  <h1>HTML Ipsum Presents</h1>
+
+  <p><strong>Pellentesque habitant morbi tristique</strong> senectus et netus et malesuada fames ac turpis egestas.
+    Vestibulum tortor quam, feugiat vitae, ultricies eget, tempor sit amet, ante. Donec eu libero sit amet quam egestas
+    semper. <em>Aenean ultricies mi vitae est.</em> Mauris placerat eleifend leo. Quisque sit amet est et sapien
+    ullamcorper pharetra. Vestibulum erat wisi, condimentum sed, <code>commodo vitae</code>, ornare sit amet, wisi.
+    Aenean fermentum, elit eget tincidunt condimentum, eros ipsum rutrum orci, sagittis tempus lacus enim ac dui. <a
+      href="#">Donec non enim</a> in turpis pulvinar facilisis. Ut felis.</p>
+
+  <h2>Header Level 2</h2>
+
+  <ol>
+    <li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li>
+    <li>Aliquam tincidunt mauris eu risus.</li>
+  </ol>
+
+  <blockquote><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus magna. Cras in mi at felis aliquet
+    congue. Ut a est eget ligula molestie gravida. Curabitur massa. Donec eleifend, libero at sagittis mollis, tellus
+    est malesuada tellus, at luctus turpis elit sit amet quam. Vivamus pretium ornare est.</p></blockquote>
+
+  <h3>Header Level 3</h3>
+
+  <ul>
+    <li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li>
+    <li>Aliquam tincidunt mauris eu risus.</li>
+  </ul>
+
+  <img src="assets/pin2.png" style="width:100%"/>
+
+  <pre><code>
+#header h1 a {
+	display: block;
+	width: 300px;
+	height: 80px;
+}
+</code></pre>
+</script>
+
+<!-- pattern used for the polygon marker -->
+<svg id="patterns">
+  <defs>
+    <pattern id="dots" x="10" y="10" width="30" height="30" patternUnits="userSpaceOnUse">
+      <circle cx="10" cy="10" r="10" style="stroke: none; fill: rgba(255,0,0,0.4)"/>
+    </pattern>
+    <pattern id="points" x="10" y="10" width="15" height="15" patternUnits="userSpaceOnUse">
+      <circle cx="10"  cy="10" r="0.8" style="stroke: none; fill: red"/>
+    </pattern>
+  </defs>
+</svg>
+
+<script>
+  var panos = [
+    {
+      // url: 'Bryce-Canyon-National-Park-Mark-Doliner.jpg',
+      url: 'FV3-01.jpg',
+      desc: 'CEYOND CEE',
+      target: {
+        longitude: 3.848,
+        latitude: -0.244,
+        zoom: 50
+      }
+    },
+    // {
+    //   url: 'Bryce-Canyon-By-Jess-Beauchemin.jpg',
+    //   desc: 'Bryce Canyon National Park <b>&copy; Jess Beauchemin</b>',
+    //   target: {
+    //     longitude: 3.715,
+    //     latitude: 0.574,
+    //     zoom: 50
+    //   }
+    // }
+  ];
+
+  var PSV = new PhotoSphereViewer({
+    container: 'photosphere',
+    panorama: panos[0].url,
+    caption: panos[0].desc,
+    loading_img: 'assets/photosphere-logo.gif',
+    // longitude_range: [-7 * Math.PI / 8, 7 * Math.PI / 8], //Vertical -315,315
+    // latitude_range: [-3 * Math.PI / 4, 3 * Math.PI / 4], //Horisontal -270,270
+    // longitude_range: [Math.PI / 360, Math.PI / 360], //Vertical -315,315
+    latitude_range: [Math.PI / 360, Math.PI / 360], //Horisontal -270,270
+    anim_speed: '-2rpm',
+    default_fov: 60,
+    fisheye: true,
+    move_speed: 1.1,
+    time_anim: false,
+
+//    touchmove_two_fingers: true,
+//    mousemove_hover: true,
+
+//Comment By Driton
+    // navbar: [
+    //   'autorotate', 'zoom', 'download', 'markers',
+    //   {
+    //     title: 'Change image',
+    //     className: 'custom-button',
+    //     content: '🔄',
+    //     onClick: (function() {
+    //       var i = 0;
+    //       var loading = false;
+
+    //       return function() {
+    //         if (loading) {
+    //           return;
+    //         }
+
+    //         // i = 1 - i;
+    //         loading = true;
+    //         // PSV.clearMarkers();
+
+    //         PSV.setPanorama(panos[i].url, panos[i].target, true)
+    //           .then(function() {
+    //             PSV.setCaption(panos[i].desc);
+    //             loading = false;
+    //           });
+    //       }
+    //     }())
+    //   },
+    //   {
+    //     title  : 'Random position',
+    //     className: 'custom-button',
+    //     content: '🔀',
+    //     onClick: function() {
+    //       PSV.animate({
+    //         longitude: (Math.random() - 0.5) * 3 / 2 * Math.PI,
+    //         latitude: (Math.random() - 0.5) * 3 / 4 * Math.PI,
+    //         zoom: Math.random() * 60 + 20
+    //       }, 1500);
+    //     }
+    //   },
+    //   'caption', 'gyroscope', 'stereo', 'fullscreen'
+    // ],
+    markers: (function() {
+      var a = [];
+
+      // for (var i = 0; i < Math.PI * 2; i += Math.PI / 4) {
+      //   for (var j = -Math.PI / 2 + Math.PI / 4; j < Math.PI / 2; j += Math.PI / 4) {
+      //     a.push({
+      //       id: '#' + a.length,
+      //       tooltip: '#' + a.length,
+      //       latitude: j,
+      //       longitude: i,
+      //       image: 'assets/pin1.png',
+      //       width: 32,
+      //       height: 32,
+      //       anchor: 'bottom center',
+      //       data: {
+      //         deletable: true
+      //       }
+      //     });
+      //   }
+      // }
+
+      // a.push({
+      //   id: 'lorem',
+      //   tooltip: {
+      //     content: 'Lorem ipsum dolor ist amet et consecturo.',
+      //     position: 'bottom right'
+      //   },
+      //   content: document.getElementById('pin-content').innerHTML,
+      //   latitude: 0,
+      //   longitude: 0.20,
+      //   image: 'assets/pin2.png',
+      //   width: 32,
+      //   height: 32,
+      //   anchor: 'bottom center'
+      // });
+
+      // a.push({
+      //   id: 'polygon-sky',
+      //   svgStyle: {
+      //     // fill: 'rgba(0, 190, 255, 0.1)'
+      //     fill: 'rgba(255, 122, 122, 0.78)'
+      //   },
+      //   polygon_rad: (function() {
+      //     var points = [];
+
+      //     for (var i = 0; i < Math.PI * 2; i += Math.PI / 8) {
+      //       points.push(i);
+      //       points.push(Math.PI / 8);
+      //     }
+
+      //     return points;
+      //   }())
+      // });
+// Prej
+      a.push({
+        id: 'polygon1',
+        content: 'CEYOND CEE',
+        polygon_px: [1260.3,1260.3, 941.1,1260.3, 0,1260.3, 0,1890.5, 1260.3,1890.5 ],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon2',
+        content: 'CEYOND CEE',
+        polygon_px: [2520.6,1260.3, 2201.4,1260.3, 1260.3,1260.3, 1260.3,1890.5, 2520.6,1890.5],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon3',
+        content: 'CEYOND CEE',
+        // image: 'assets/1x/Asset2.png',
+        // width: 1345,
+        // height: 679,
+        polygon_px: [3780.9,1260.3, 3461.7,1260.3, 2520.6,1260.3, 2520.6,1890.5, 3780.9,1890.5 ],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon4',
+        content: 'CEYOND CEE1',
+        polygon_px: [5040.8,1260.3, 4721.6,1260.3, 3780.5,1260.3, 3780.5,1890.5, 5040.8,1890.5],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // fill: 'url(points)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon5',
+        content: 'CEYOND CEE',
+        polygon_px: [6301.5,1260.3, 5982.3,1260.3, 5041.2,1260.3, 5041.2,1890.5, 6301.5,1890.5],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon6',
+        content: 'CEYOND CEE',
+        polygon_px: [6931.7,1260.3, 6772.1,1260.3, 6301.5,1260.3, 6301.5,1890.5, 6931.7,1890.5],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon7',
+        content: 'CEYOND CEE',
+        polygon_px: [7561.8,1260.3, 7402.2,1260.3, 6931.7,1260.3, 6931.7,1890.5, 7561.8,1890.5],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon8',
+        content: 'CEYOND CEE',
+        polygon_px: [8192,1260.3, 8032.4,1260.3, 7561.8,1260.3, 7561.8,1890.5, 8192,1890.5],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon9',
+        content: 'CEYOND CEE',
+        polygon_px: [630.2,1890.5, 470.6,1890.5, 0,1890.5, 0,2520.6, 630.2,2520.6],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon10',
+        content: 'CEYOND CEE',
+        polygon_px: [1890.5,1890.5, 1571.3,1890.5, 630.2,1890.5, 630.2,2520.6, 1890.5,2520.6],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon11',
+        content: 'CEYOND CEE',
+        polygon_px: [3150.8,1890.5, 2831.6,1890.5, 1890.5,1890.5, 1890.5,2520.6, 3150.8,2520.6],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon12',
+        content: 'CEYOND CEE',
+        polygon_px: [4411.1,1890.5, 4091.9,1890.5, 3150.8,1890.5, 3150.8,2520.6, 4411.1,2520.6 ],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon13',
+        content: 'CEYOND CEE',
+        polygon_px: [5671.4,1890.5, 5352.2,1890.5, 4411.1,1890.5, 4411.1,2520.6, 5671.4,2520.6],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon14',
+        content: 'CEYOND CEE',
+        polygon_px: [6931.7,1890.5, 6612.5,1890.5, 5671.4,1890.5, 5671.4,2520.6, 6931.7,2520.6],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon15',
+        content: 'CEYOND CEE',
+        polygon_px: [7561.8,1890.5, 7402.2,1890.5, 6931.7,1890.5, 6931.7,2520.6, 7561.8,2520.6 ],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+      a.push({
+        id: 'polygon16',
+        content: 'CEYOND CEE',
+        polygon_px: [8192,1890.5, 8032.4,1890.5, 7561.8,1890.5, 7561.8,2520.6, 8192,2520.6 ],
+        svgStyle: {
+          fill: 'rgba(196, 196, 196, 0)',
+          // stroke: 'rgba(36, 94, 255, 0.98)',
+          strokeWidth: '2px'
+        },
+        tooltip: {
+          content: 'CEYOND CEE',
+          position: 'right bottom'
+        }
+      });
+// ketu
+      // a.push({
+      //   id: 'polygon17',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [6048,2016, 5877.8,2016, 5376,2016, 5376,2688, 6048,2688],
+      //   svgStyle: {
+      //     fill: 'rgba(0, 135, 242, 0.41)',
+      //     stroke: 'rgba(0, 135, 242, 0.41)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+      // a.push({
+      //   id: 'polygon18',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [2049.3,1020.1, 2007.5,1020.1, 1709.3,1020.1, 1709.3,1360.1, 2049.3,1360.1  ],
+      //   svgStyle: {
+      //     fill: 'rgba(255,0,0,0.3)',
+      //     stroke: 'rgba(255, 0, 50, 0.8)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+      // a.push({
+      //   id: 'polygon19',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [2390.7,1020.1, 2348.9,1020.1, 2050.7,1020.1, 2050.7,1360.1, 2390.7,1360.1 ],
+      //   svgStyle: {
+      //     fill: 'rgba(0, 135, 242, 0.41)',
+      //     stroke: 'rgba(0, 135, 242, 0.41)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+      // a.push({
+      //   id: 'polygon20',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [2732.1,1020.1, 2690.3,1020.1, 2392.1,1020.1, 2392.1,1360.1, 2732.1,1360.1 ],
+      //   svgStyle: {
+      //     fill: 'rgba(255,0,0,0.3)',
+      //     stroke: 'rgba(255, 0, 50, 0.8)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+      // a.push({
+      //   id: 'polygon21',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [3073.5,1020.1, 3031.7,1020.1, 2733.5,1020.1, 2733.5,1360.1, 3073.5,1360.1 ],
+      //   svgStyle: {
+      //     fill: 'rgba(0, 135, 242, 0.41)',
+      //     stroke: 'rgba(0, 135, 242, 0.41)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+      // a.push({
+      //   id: 'polygon22',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [3414.9,1020.1, 3373.1,1020.1, 3074.9,1020.1, 3074.9,1360.1, 3414.9,1360.1 ],
+      //   svgStyle: {
+      //     fill: 'rgba(255,0,0,0.3)',
+      //     stroke: 'rgba(255, 0, 50, 0.8)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+      // a.push({
+      //   id: 'polygon23',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [3756.3,1020.1, 3714.5,1020.1, 3416.3,1020.1, 3416.3,1360.1, 3756.3,1360.1 ],
+      //   svgStyle: {
+      //     fill: 'rgba(0, 135, 242, 0.41)',
+      //     stroke: 'rgba(0, 135, 242, 0.41)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+      // a.push({
+      //   id: 'polygon24',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [4097.7,1020.1, 4055.9,1020.1, 3757.7,1020.1, 3757.7,1360.1, 4097.7,1360.1 ],
+      //   svgStyle: {
+      //     fill: 'rgba(255,0,0,0.3)',
+      //     stroke: 'rgba(255, 0, 50, 0.8)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+      //Comment by Driton
+      // a.push({
+      //   id: 'polygon',
+      //   content: 'CEYOND CEE',
+      //   polygon_px: [3184, 794, 3268, 841, 3367, 1194, 3327, 1307, 3065, 1221, 3097, 847],
+      //   svgStyle: {
+      //     fill: 'url(#points)', //'rgba(255,0,0,0.3)',
+      //     stroke: 'rgba(255, 0, 50, 0.8)',
+      //     strokeWidth: '2px'
+      //   },
+      //   tooltip: {
+      //     content: 'CEYOND CEE',
+      //     position: 'right bottom'
+      //   }
+      // });
+
+      //Comment by Driton
+      // a.push({
+      //   id: 'polyline',
+      //   polyline_rad: [5.924, 0.064, 5.859, -0.061, 5.710, -0.132, 5.410, -0.287, 4.329, -0.490, 3.838, -0.370, 3.725, -0.241],
+      //   svgStyle: {
+      //     stroke: 'rgba(80, 100, 50, 0.8)',
+      //     strokeLinecap: 'round',
+      //     strokeLinejoin: 'round',
+      //     strokeWidth: '10px'
+      //   },
+      //   tooltip: 'This is a track'
+      // });
+
+      // a.push({
+      //   id: 'html-img-demo',
+      //   html: 'HTML & Image',
+      //   scale: [0.5, 1.5],
+      //   className: 'demo-label',
+      //   longitude: 0.5,
+      //   latitude: -0.48
+      // });
+
+      // a.push({
+      //   id: 'gif',
+      //   image: 'assets/photosphere-logo.gif',
+      //   width: 100,
+      //   height: 100,
+      //   longitude: 0.60,
+      //   latitude: -0.35
+      // });
+
+      // a.push({
+      //   id: 'text',
+      //   html: 'This <b>is</b> text <img src="assets/pin3.png" style="height: 24px; vertical-align: top;"/>',
+      //   anchor: 'bottom right',
+      //   style: {
+      //     color: 'white',
+      //     fontSize: '20px',
+      //     fontFamily: 'Helvetica, sans-serif',
+      //     textAlign: 'center'
+      //   },
+      //   longitude: 0.45,
+      //   latitude: -0.4
+      // });
+
+      // a.push({
+      //   id: 'svg-demo',
+      //   html: 'SVG marker demo',
+      //   scale: [0.5, 1.5],
+      //   className: 'demo-label',
+      //   longitude: -0.5,
+      //   latitude: -0.48
+      // });
+
+      // a.push({
+      //   id: 'circle',
+      //   tooltip: 'A circle of radius 30',
+      //   circle: 30,
+      //   svgStyle: {
+      //     fill: 'rgba(255,255,0,0.3)',
+      //     stroke: 'yellow',
+      //     strokeWidth: '2px'
+      //   },
+      //   longitude: -0.5,
+      //   latitude: -0.28,
+      //   anchor: 'center right'
+      // });
+
+      // a.push({
+      //   id: 'ellipse',
+      //   tooltip: 'An ellipse of radius 60/30',
+      //   ellipse: [60, 30],
+      //   svgStyle: {
+      //     fill: 'rgba(255,255,0,0.3)',
+      //     stroke: 'yellow',
+      //     strokeWidth: '2px'
+      //   },
+      //   longitude: -0.5,
+      //   latitude: -0.28,
+      //   anchor: 'center left'
+      // });
+
+      // a.push({
+      //   id: 'rect',
+      //   tooltip: 'A square a side 60',
+      //   rect: [160, 160],
+      //   svgStyle: {
+      //     fill: 'rgba(255,255,0,0.3)',
+      //     stroke: 'yellow',
+      //     strokeWidth: '2px'
+      //   },
+      //   longitude: -0.5,
+      //   latitude: -0.38,
+      //   anchor: 'center right'
+      // });
+
+      // a.push({
+      //   id: 'path',
+      //   tooltip: 'A custom path',
+      //   path: 'M 0 0 L 60 60 L 60 0 L 0 60 L 0 0',
+      //   svgStyle: {
+      //     fill: 'rgba(255,255,0,0.3)',
+      //     stroke: 'yellow',
+      //     strokeWidth: '2px'
+      //   },
+      //   longitude: -0.5,
+      //   latitude: -0.38,
+      //   anchor: 'center left'
+      // });
+
+      // a.push({
+      //   id: 'scale-demo',
+      //   html: 'Marker scale demo',
+      //   scale: [0.5, 1.5],
+      //   className: 'demo-label',
+      //   longitude: 0,
+      //   latitude: -0.48
+      // });
+
+      // a.push({
+      //   id: 'scale-0',
+      //   tooltip: 'No scale',
+      //   scale: false,
+      //   circle: 20,
+      //   svgStyle: {
+      //     fill: 'rgba(0, 0, 0, 0.5)'
+      //   },
+      //   longitude: -0.1,
+      //   latitude: -0.4
+      // });
+
+      // a.push({
+      //   id: 'scale-1',
+      //   tooltip: '<code>zoom x2</code>',
+      //   scale: 2,
+      //   circle: 20,
+      //   svgStyle: {
+      //     fill: 'rgba(0, 0, 0, 0.5)'
+      //   },
+      //   longitude: 0,
+      //   latitude: -0.4
+      // });
+
+      // a.push({
+      //   id: 'scale-2',
+      //   tooltip: '<code>zoom x0.5 ; zoom x1.5</code>',
+      //   scale: [0.5, 1.5],
+      //   circle: 20,
+      //   svgStyle: {
+      //     fill: 'rgba(0, 0, 0, 0.5)'
+      //   },
+      //   longitude: 0.1,
+      //   latitude: -0.4
+      // });
+
+      return a;
+    }())
+  });
+
+  //Comment by Driton
+  // PSV.on('click', function(e) {
+  //   PSV.addMarker({
+  //     id: '#' + Math.random(),
+  //     tooltip: 'Generated marker',
+  //     longitude: e.longitude,
+  //     latitude: e.latitude,
+  //     image: 'assets/pin1.png',
+  //     width: 32,
+  //     height: 32,
+  //     anchor: 'bottom center',
+  //     data: {
+  //       deletable: true
+  //     }
+  //   });
+  // });
+
+  // PSV.on('select-marker', function(marker, dblclick) {
+  //   if (marker.data && marker.data.deletable) {
+  //     if (dblclick) {
+  //       PSV.removeMarker(marker);
+  //     }
+  //     else {
+  //       PSV.updateMarker({
+  //         id: marker.id,
+  //         image: 'assets/pin2.png'
+  //       });
+  //     }
+  //   }
+  // });
+
+  PSV.on('over-marker', function(marker) {
+    console.log('over', marker.id);
+  });
+
+  PSV.on('leave-marker', function(marker) {
+    console.log('leave', marker.id);
+  });
+
+  PSV.on('select-marker-list', function(marker) {
+    console.log('select-list', marker.id);
+  });
+
+  PSV.on('goto-marker-done', function(marker) {
+    console.log('goto-done', marker.id);
+  });
+</script>
+
+<script>
+  document.write('<script src="//' + location.host.split(':')[0] + ':35729/livereload.js" async defer><' + '/script>');
+</script>
+</body>
+</html>
